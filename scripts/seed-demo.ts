@@ -12,8 +12,6 @@ Requirements:
   - Install ts-node if not available: `npm i -D ts-node typescript`
 */
 
-import fetch from 'node-fetch';
-
 type Plant = {
   type: string;
   sub_type?: string;
