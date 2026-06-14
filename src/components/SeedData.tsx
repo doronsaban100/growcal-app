@@ -27,8 +27,10 @@ export function SeedData() {
     }
   };
 
-  // הכפתור יופיע רק בסביבת פיתוח ובמקרה שהמשתמש כבר מחובר
-  if (process.env.NODE_ENV !== "development" || !isLoaded || !isSignedIn) return null;
+  // הגנה קשיחה: הכפתור יופיע *רק* אם אנחנו מריצים מקומית (localhost)
+  // וגם אם המשתמש מחובר. ב-Vercel (Production) הוא לא ירונדר לעולם.
+  const isLocal = typeof window !== 'undefined' && window.location.hostname === 'localhost';
+  if (!isLocal || !isLoaded || !isSignedIn) return null;
 
   return (
     <button

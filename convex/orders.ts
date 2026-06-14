@@ -39,7 +39,7 @@ export const getMyOrders = query({
       allOrders.map(async (order) => {
         const listing = order.listing_id ? await ctx.db.get(order.listing_id) : null;
         // תמיכה בהזמנה מרובת צמחים או צמח בודד מ-listing
-        const firstPlantId = order.plant_ids?.[0] ?? listing?.plant_id;
+        const firstPlantId = (order.plant_ids && order.plant_ids.length > 0) ? order.plant_ids[0] : listing?.plant_id;
         const plant = firstPlantId ? await ctx.db.get(firstPlantId) : null;
         const counterParty = await ctx.db.get(order.role === "buyer" ? order.seller_id : order.buyer_id);
         

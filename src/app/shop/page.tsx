@@ -1,4 +1,4 @@
-﻿"use client";
+﻿﻿"use client";
 import { useState, useMemo, useEffect } from "react";
 import { useQuery } from "convex/react";
 import { useAuth } from "@clerk/nextjs";
@@ -27,13 +27,13 @@ const mockPlants: ShopPlant[] = [
   },
   {
     _id: "mock3",
-    type: "פוטוס",
-    sub_type: "זהב",
-    status: "auction",
-    estimated_value: 80,
-    current_price: 80,
+    type: "סנסיוויריה",
+    sub_type: "צילינדריקה",
+    status: "for-sale",
+    estimated_value: 90,
+    current_price: 90,
     location: "ירושלים",
-    imageUrl: "https://images.unsplash.com/photo-1506543730435-e2c1d4553a84?q=80&w=800&auto=format&fit=crop",
+    imageUrl: "https://images.unsplash.com/photo-1597293774028-d89155745104?q=80&w=800&auto=format&fit=crop",
     defaultCareGuide: {
       lightNeeds: "אור חלקי",
       wateringFrequency: 14

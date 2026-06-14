@@ -1,4 +1,4 @@
-﻿"use client";
+﻿﻿"use client";
 
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
@@ -9,22 +9,22 @@ import { useState } from "react";
 import type { Id } from "@convex/_generated/dataModel";
 
 const escrowLabels: Record<string, string> = {
-  held: "׳”׳×׳©׳׳•׳ ׳‘׳ ׳׳׳ ׳•׳×",
-  released_to_seller: "׳”׳•׳©׳׳",
-  refunded_to_buyer: "׳”׳•׳—׳–׳¨",
+  held: "התשלום בנאמנות",
+  released_to_seller: "הושלם",
+  refunded_to_buyer: "הוחזר",
 };
 
 const shippingLabels: Record<string, string> = {
-  pending: "׳׳׳×׳™׳",
-  shipped: "׳ ׳©׳׳—",
-  delivered: "׳”׳’׳™׳¢",
-  disputed: "׳‘׳׳—׳׳•׳§׳×",
+  pending: "ממתין",
+  shipped: "נשלח",
+  delivered: "הגיע",
+  disputed: "במחלוקת",
 };
 
 const orderTabs = [
-  { id: "all", label: "׳³ג€׳³ג€÷׳³ֲ" },
-  { id: "buyer", label: "׳³ֲ§׳³ֲ ׳³ג„¢׳³ג€¢׳³ֳ—" },
-  { id: "seller", label: "׳³ֲ׳³ג€÷׳³ג„¢׳³ֲ¨׳³ג€¢׳³ֳ—" },
+  { id: "all", label: "הכל" },
+  { id: "buyer", label: "קניות" },
+  { id: "seller", label: "מכירות" },
 ] as const;
 
 function OrderChat({ orderId, currentUserId }: { orderId: Id<"orders">, currentUserId?: Id<"users"> }) {
@@ -39,11 +39,11 @@ function OrderChat({ orderId, currentUserId }: { orderId: Id<"orders">, currentU
       await send({ orderId, text: inputText });
       setInputText("");
     } catch {
-      alert("׳©׳’׳™׳׳” ׳‘׳©׳׳™׳—׳× ׳”׳”׳•׳“׳¢׳”");
+      alert("שגיאה בשליחת ההודעה");
     }
   };
 
-  if (messages === undefined) return <div className="p-4 text-center text-[10px] text-stone-400">{"Loading chat..."}</div>;
+  if (messages === undefined) return <div className="p-4 text-center text-[10px] text-stone-400">טוען צ'אט...</div>;
 
   return (
     <div className="mt-4 border-t border-stone-100 pt-4">
@@ -51,11 +51,11 @@ function OrderChat({ orderId, currentUserId }: { orderId: Id<"orders">, currentU
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-4 h-4">
           <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.6 1.123 2.994 2.707 3.227 1.129.166 2.27.293 3.423.379.35.026.67.21.865.501L12 21l2.755-4.133a1.14 1.14 0 01.865-.501 48.172 48.172 0 003.423-.379c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0012 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018z" />
         </svg>
-        <span className="text-xs font-bold uppercase tracking-wider">{"Chat"}</span>
+        <span className="text-xs font-bold uppercase tracking-wider">צ'אט לתיאום</span>
       </div>
       <div className="max-h-40 overflow-y-auto space-y-2 flex flex-col mb-3 scrollbar-hide">
         {messages.length === 0 ? (
-          <p className="text-center text-[10px] text-stone-400">׳׳™׳ ׳”׳•׳“׳¢׳•׳× ׳¢׳“׳™׳™׳. ׳×׳׳ ׳›׳׳ ׳׳× ׳”׳׳₪׳’׳©!</p>
+          <p className="text-center text-[10px] text-stone-400">אין הודעות עדיין. תאם כאן את המפגש!</p>
         ) : (
           messages.map((msg) => (
             <div 
@@ -76,7 +76,7 @@ function OrderChat({ orderId, currentUserId }: { orderId: Id<"orders">, currentU
           type="text" 
           value={inputText}
           onChange={(e) => setInputText(e.target.value)}
-          placeholder="׳›׳×׳•׳‘ ׳”׳•׳“׳¢׳”..."
+          placeholder="כתוב הודעה..."
           className="flex-1 bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-xs outline-none focus:ring-1 ring-emerald-500"
         />
         <button type="submit" className="bg-emerald-800 text-white p-2 rounded-xl transition-transform active:scale-90">
@@ -101,7 +101,7 @@ export default function OrdersPage() {
   const [openChat, setOpenChat] = useState<string | null>(null);
 
   if (orders === undefined) {
-    return <div className="p-10 text-center">׳˜׳•׳¢׳ ׳”׳–׳׳ ׳•׳×...</div>;
+    return <div className="p-10 text-center">טוען הזמנות...</div>;
   }
 
   const filteredOrders = orders.filter(o => 
@@ -115,7 +115,7 @@ export default function OrdersPage() {
     setIsVerifying(orderId);
     try {
       await verifyDelivery({ orderId, code });
-      alert("׳”׳¦׳׳— ׳׳•׳׳× ׳‘׳”׳¦׳׳—׳”! ׳×׳×׳—׳“׳© נ±");
+      alert("הצמח אומת בהצלחה! תתחדש 🌱");
     } catch (err: unknown) {
       alert(err instanceof Error ? err.message : "Verification failed");
     } finally {
@@ -129,14 +129,14 @@ export default function OrdersPage() {
     try {
       await updateMeetingPoint({ orderId, meetingPoint });
     } catch {
-      alert("׳©׳’׳™׳׳” ׳‘׳¢׳“׳›׳•׳ ׳”׳׳™׳§׳•׳");
+      alert("שגיאה בעדכון המיקום");
     }
   };
 
   return (
     <div className="flex flex-col h-full bg-stone-50" dir="rtl">
       <header className="p-6 bg-white border-b border-stone-100 sticky top-0 z-10">
-        <h1 className="text-2xl font-bold text-stone-800">׳”׳”׳–׳׳ ׳•׳× ׳©׳׳™</h1>
+        <h1 className="text-2xl font-bold text-stone-800">ההזמנות שלי</h1>
         
         <div className="flex mt-6 p-1 bg-stone-100 rounded-2xl">
           {orderTabs.map((tab) => (
@@ -158,9 +158,9 @@ export default function OrdersPage() {
       <div className="flex-1 p-6 overflow-y-auto space-y-4">
         {filteredOrders.length === 0 ? (
           <EmptyState 
-            icon="נ“¦"
-            title="׳׳™׳ ׳¢׳“׳™׳™׳ ׳”׳–׳׳ ׳•׳×"
-            description="׳›׳׳ ׳™׳•׳₪׳™׳¢׳• ׳”׳¦׳׳—׳™׳ ׳©׳§׳ ׳™׳× ׳׳• ׳׳›׳¨׳× ׳‘׳׳›׳¨׳–׳™׳ ׳•׳‘׳©׳•׳§."
+            icon="📦"
+            title="אין עדיין הזמנות"
+            description="כאן יופיעו הצמחים שקנית או מכרת במכרזים ובשוק."
             buttonText="׳׳©׳•׳§ ׳”׳¦׳׳—׳™׳"
             buttonHref="/"
           />
@@ -170,9 +170,15 @@ export default function OrdersPage() {
               <div className="flex gap-4">
                 <div className="relative w-20 h-20 shrink-0 rounded-2xl overflow-hidden border border-stone-100 bg-stone-50">
                   {order.imageUrl ? (
-                    <Image src={order.imageUrl} alt={order.plantType} fill className="object-cover" />
+                    <Image 
+                      src={order.imageUrl} 
+                      alt={order.plantType} 
+                      fill 
+                      sizes="80px" 
+                      className="object-cover" 
+                    />
                   ) : (
-                    <div className="flex items-center justify-center h-full text-stone-300 text-xs">׳׳™׳ ׳×׳׳•׳ ׳”</div>
+                    <div className="flex items-center justify-center h-full text-stone-300 text-xs">אין תמונה</div>
                   )}
                 </div>
                 
@@ -182,11 +188,11 @@ export default function OrdersPage() {
                       <h3 className="font-bold text-stone-800 leading-tight">{order.plantType}</h3>
                       <p className="text-xs text-stone-400">{order.plantSubType}</p>
                     </div>
-                    <span className="text-lg font-black text-emerald-800">ג‚×{order.final_amount}</span>
+                    <span className="text-lg font-black text-emerald-800">₪{order.final_amount}</span>
                   </div>
                   
                   <p className="text-[10px] text-stone-400 mt-2">
-                    {order.role === "buyer" ? `׳׳•׳›׳¨: ${order.counterPartyName}` : `׳§׳•׳ ׳”: ${order.counterPartyName}`}
+                    {order.role === "buyer" ? `מוכר: ${order.counterPartyName}` : `קונה: ${order.counterPartyName}`}
                   </p>
                 </div>
               </div>
@@ -198,14 +204,14 @@ export default function OrdersPage() {
                     <path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
                     <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z" />
                   </svg>
-                  <span className="text-xs font-bold uppercase tracking-wider">׳×׳™׳׳•׳ ׳׳™׳§׳•׳ ׳׳₪׳’׳©</span>
+                  <span className="text-xs font-bold uppercase tracking-wider">תיאום מיקום מפגש</span>
                 </div>
 
                 {order.role === "seller" ? (
                   <div className="flex gap-2">
                     <input 
                       type="text"
-                      placeholder={order.meeting_point || "׳”׳–׳ ׳›׳×׳•׳‘׳× ׳׳• ׳ ׳§׳•׳“׳× ׳׳₪׳’׳©..."}
+                      placeholder={order.meeting_point || "הזן כתובת או נקודת מפגש..."}
                       className="flex-1 bg-white border border-stone-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 ring-emerald-500"
                       value={meetingPointInput[order._id] || ""}
                       onChange={(e) => setMeetingPointInput({...meetingPointInput, [order._id]: e.target.value})}
@@ -214,13 +220,13 @@ export default function OrdersPage() {
                       onClick={() => handleUpdateMeetingPoint(order._id)}
                       className="bg-stone-800 text-white px-4 rounded-xl font-bold text-xs"
                     >
-                      ׳¢׳“׳›׳
+                      עדכן
                     </button>
                   </div>
                 ) : (
                   <div className="flex items-center justify-between">
                     <p className="text-sm text-stone-800 font-medium">
-                      {order.meeting_point || "׳׳׳×׳™׳ ׳׳¢׳“׳›׳•׳ ׳”׳׳•׳›׳¨..."}
+                      {order.meeting_point || "ממתין לעדכון המוכר..."}
                     </p>
                     {order.meeting_point && (
                       <a 
@@ -229,20 +235,20 @@ export default function OrdersPage() {
                         rel="noopener noreferrer"
                         className="text-xs font-bold text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-lg"
                       >
-                        ׳₪׳×׳— ׳‘׳׳₪׳”
+                        פתח במפה
                       </a>
                     )}
                   </div>
                 )}
               </div>
 
-              {/* ׳›׳₪׳×׳•׳¨ ׳¦'׳׳˜ */}
+              {/* כפתור צ'אט */}
               <button 
                 onClick={() => setOpenChat(openChat === order._id ? null : order._id)}
                 className="mt-2 text-[11px] font-bold text-stone-500 flex items-center justify-center gap-2 py-2 bg-stone-50 rounded-xl hover:bg-stone-100 transition-colors"
               >
-                {openChat === order._id ? "׳¡׳’׳•׳¨ ׳¦'׳׳˜" : "׳₪׳×׳— ׳¦'׳׳˜ ׳׳×׳™׳׳•׳"}
-                <span className="text-sm">נ’¬</span>
+                {openChat === order._id ? "סגור צ'אט" : "פתח צ'אט לתיאום"}
+                <span className="text-sm">💬</span>
               </button>
 
               {openChat === order._id && <OrderChat orderId={order._id} currentUserId={currentUser?._id} />}
@@ -253,15 +259,15 @@ export default function OrdersPage() {
                   <div className="bg-emerald-50 rounded-2xl p-4 border border-emerald-100">
                     {order.role === "seller" ? (
                       <div className="text-center">
-                        <p className="text-xs text-emerald-800 font-bold mb-2">׳§׳•׳“ ׳׳™׳׳•׳× ׳׳׳¡׳™׳¨׳” (׳”׳¦׳’ ׳׳§׳•׳ ׳”):</p>
+                        <p className="text-xs text-emerald-800 font-bold mb-2">קוד אימות למסירה (הצג לקונה):</p>
                         <div className="bg-white py-3 rounded-xl border-2 border-dashed border-emerald-200 text-2xl font-black tracking-widest text-emerald-900">
                           {order.verification_code}
                         </div>
-                        <p className="text-[10px] text-emerald-600 mt-2 italic">׳”׳§׳•׳ ׳” ׳™׳¡׳¨׳•׳§/׳™׳–׳™׳ ׳§׳•׳“ ׳–׳” ׳‘׳–׳׳ ׳”׳׳₪׳’׳©</p>
+                        <p className="text-[10px] text-emerald-600 mt-2 italic">הקונה יזין קוד זה בזמן המפגש</p>
                       </div>
                     ) : (
                       <div className="space-y-3">
-                        <p className="text-xs text-emerald-800 font-bold">׳ ׳₪׳’׳©׳×׳? ׳”׳–׳ ׳׳× ׳”׳§׳•׳“ ׳©׳”׳׳•׳›׳¨ ׳׳¦׳™׳’:</p>
+                        <p className="text-xs text-emerald-800 font-bold">נפגשתם? הזן את הקוד שהמוכר מציג:</p>
                         <div className="flex gap-2">
                           <input 
                             type="text"
@@ -275,7 +281,7 @@ export default function OrdersPage() {
                             disabled={isVerifying === order._id}
                             className="bg-emerald-800 text-white px-4 rounded-xl font-bold text-xs"
                           >
-                            {isVerifying === order._id ? "׳‘׳•׳“׳§..." : "׳׳׳×"}
+                            {isVerifying === order._id ? "בודק..." : "אמת"}
                           </button>
                         </div>
                       </div>
@@ -286,7 +292,7 @@ export default function OrdersPage() {
 
               <div className="grid grid-cols-2 gap-2 mt-2">
                 <div className="flex flex-col gap-1">
-                  <span className="text-[10px] font-bold text-stone-400 uppercase">׳¡׳˜׳˜׳•׳¡ ׳×׳©׳׳•׳</span>
+                  <span className="text-[10px] font-bold text-stone-400 uppercase">סטטוס תשלום</span>
                   <div className={`text-[11px] font-bold px-3 py-1 rounded-full w-fit ${
                     order.escrow_status === 'released_to_seller' ? 'bg-emerald-50 text-emerald-700' : 
                     order.escrow_status === 'held' ? 'bg-amber-50 text-amber-700' : 'bg-blue-50 text-blue-700'
@@ -296,7 +302,7 @@ export default function OrdersPage() {
                 </div>
 
                 <div className="flex flex-col gap-1">
-                  <span className="text-[10px] font-bold text-stone-400 uppercase">׳¡׳˜׳˜׳•׳¡ ׳׳©׳׳•׳—</span>
+                  <span className="text-[10px] font-bold text-stone-400 uppercase">סטטוס משלוח</span>
                   <div className={`text-[11px] font-bold px-3 py-1 rounded-full w-fit ${
                     order.shipping_status === 'delivered' ? 'bg-emerald-50 text-emerald-700' : 
                     order.shipping_status === 'pending' ? 'bg-stone-100 text-stone-600' : 
@@ -309,13 +315,13 @@ export default function OrdersPage() {
               
               <div className="flex justify-between items-center mt-1">
                 <span className="text-[10px] text-stone-300">
-                  ׳‘׳•׳¦׳¢ ׳‘- {new Date(order._creationTime).toLocaleDateString('he-IL')}
+                  בוצע ב- {new Date(order._creationTime).toLocaleDateString('he-IL')}
                 </span>
                 <Link 
                   href={`/listing/${order.listing_id}`}
                   className="text-[11px] font-bold text-emerald-700 hover:underline"
                 >
-                  ׳¦׳₪׳” ׳‘׳₪׳¨׳˜׳™ ׳”׳׳•׳“׳¢׳” ג†
+                  צפה בפרטי המודעה ←
                 </Link>
               </div>
             </div>

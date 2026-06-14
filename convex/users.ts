@@ -13,7 +13,7 @@ export const storeUser = mutation({
       throw new Error("לא נמצאה זהות משתמש מחוברת");
     }
 
-    // חיפוש המשתמש לפי ה-subject (המזהה הייחודי של Clerk)
+    // חיפוש המשתמש לפי ה-clerkId (מזהה ייחודי מספק האימות)
     const user = await ctx.db
       .query("users")
       .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.subject))
@@ -27,10 +27,12 @@ export const storeUser = mutation({
           email: identity.email ?? "",
         });
       }
+      // המשתמש כבר קיים - מחזירים את המזהה שלו
       return user._id;
     }
 
     // יצירת רשומה חדשה למשתמש חדש
+    // משתמש חדש - יצירת רשומה חדשה עם ערכי ברירת מחדל לפי ה-Schema שלנו
     return await ctx.db.insert("users", {
       clerkId: identity.subject,
       name: identity.name ?? "משתמש GrowCal",
@@ -142,5 +144,22 @@ export const setCollectionPrivacy = mutation({
     await ctx.db.patch(user._id, {
       is_collection_public: args.isPublic,
     });
+  },
+});
+
+/**
+ * שאילתה לשליפת מידע פומבי על משתמש לפי ה-ID שלו.
+ */
+export const getPublicUser = query({
+  args: { userId: v.id("users") },
+  handler: async (ctx, args) => {
+    const user = await ctx.db.get(args.userId);
+    if (!user) return null;
+    return {
+      _id: user._id,
+      name: user.name,
+      reputation_score: user.reputation_score,
+      is_collection_public: user.is_collection_public,
+    };
   },
 });

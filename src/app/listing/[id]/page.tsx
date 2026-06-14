@@ -2,114 +2,164 @@
 
 import { useParams, useRouter } from "next/navigation";
 import { useQuery } from "convex/react";
-import { api } from "../../../../convex/_generated/api";
-import type { Id } from "../../../../convex/_generated/dataModel";
+import { api } from "@convex/_generated/api";
 import Image from "next/image";
 import Link from "next/link";
-import PlantCareGuide from "@/components/PlantCareGuide";
+import { useAuth } from "@clerk/nextjs";
 
-export default function ListingDetailsPage() {
+export default function ListingPage() {
   const params = useParams();
+  const id = params?.id;
   const router = useRouter();
-  const idParam = params?.id;
-  const listingId = typeof idParam === "string" ? (idParam as Id<"listings">) : undefined;
-  const listing = useQuery(api.listings.get, listingId !== undefined ? { id: listingId } : "skip");
+  const { isSignedIn, isLoaded } = useAuth();
+  
+  // שימוש ב-skip כדי לא להריץ את השאילתה אם ה-ID עדיין לא זמין מה-URL
+  const displayData = useQuery(
+    api.plants.getListingDetail, 
+    typeof id === "string" ? { id } : "skip"
+  );
 
-  if (listing === undefined) {
+  // בזמן טעינה
+  if (!isLoaded || displayData === undefined) {
     return (
-      <div className="flex h-full items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-emerald-700 border-t-transparent" />
+      <div className="flex min-h-screen items-center justify-center bg-white">
+        <div className="h-10 w-10 animate-spin rounded-full border-4 border-emerald-600 border-t-transparent" />
       </div>
     );
   }
 
-  if (listing === null || !listing.plant) {
+  // רק אם הטעינה הסתיימה והנתונים חזרו כ-null (כלומר לא נמצא באמת)
+  if (displayData === null) {
     return (
-      <div className="p-6 text-center">
-        <h2 className="text-xl font-semibold text-stone-800">המודעה לא נמצאה</h2>
-        <Link href="/" className="mt-4 inline-block text-emerald-700 font-semibold">חזרה לשוק</Link>
+      <div className="flex flex-col items-center justify-center min-h-screen p-6 text-center bg-stone-50">
+        <div className="text-6xl mb-4">🥀</div>
+        <h1 className="text-2xl font-bold text-stone-800 mb-2">הצמח לא נמצא</h1>
+        <p className="text-stone-500 mb-8">יכול להיות שהמודעה כבר לא רלוונטית או שהוסרה.</p>
+        <Link href="/" className="bg-emerald-800 text-white px-8 py-4 rounded-2xl font-bold shadow-lg shadow-emerald-900/20 active:scale-95 transition-all">
+          חזרה לשוק הצמחים
+        </Link>
       </div>
     );
   }
 
-  const { plant } = listing;
+  const getLightIcon = (needs?: string) => {
+    if (!needs) return "🌱";
+    if (needs.includes("שמש מלאה")) return "☀️";
+    if (needs.includes("חצי שמש") || needs.includes("אור לא ישיר")) return "⛅";
+    return "🌑";
+  };
 
   return (
-    <div className="flex flex-col h-full bg-white" dir="rtl">
-      {/* Top Navigation */}
-      <div className="absolute top-6 left-6 right-6 z-10 flex justify-between items-center px-6">
-        <button
+    <div className="flex flex-col min-h-screen bg-white pb-24">
+      {/* כפתור חזרה צף */}
+      <div className="fixed top-6 right-6 z-50">
+        <button 
           onClick={() => router.back()}
-          className="rounded-full bg-white p-2 text-stone-800 shadow-sm"
+          className="w-12 h-12 bg-white/90 backdrop-blur-md rounded-2xl flex items-center justify-center shadow-xl border border-stone-100 active:scale-90 transition-all"
         >
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-5 h-5">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-6 h-6 text-stone-800">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />
           </svg>
         </button>
       </div>
 
-      {/* Image Section */}
-      <div className="relative h-72 w-full bg-stone-100">
-        {plant.imageUrl ? (
-          <Image
-            src={plant.imageUrl}
-            alt={plant.type}
-            fill
-            className="object-cover"
-            priority
-          />
-        ) : (
-          <div className="flex h-full items-center justify-center text-stone-400">אין תמונה זמינה</div>
-        )}
+      {/* תמונת הצמח - Hero */}
+      <div className="relative w-full aspect-[4/5] bg-stone-100 overflow-hidden">
+        <Image 
+          src={displayData.imageUrls?.[0] || displayData.imageUrl || ""} 
+          alt={displayData.type}
+          fill
+          className="object-cover"
+          priority
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+        
+        {/* פרטים מהירים בתחתית התמונה */}
+        <div className="absolute bottom-12 right-8 left-8 text-white">
+            <div className="inline-flex items-center gap-2 px-3 py-1 bg-emerald-500/80 backdrop-blur-md rounded-full text-[10px] font-black uppercase tracking-widest mb-3">
+                <span className="relative flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-white"></span>
+                </span>
+                זמין למסירה
+            </div>
+            <h1 className="text-4xl font-black mb-1">{displayData.type}</h1>
+            <p className="text-xl opacity-90 font-medium">{displayData.sub_type}</p>
+        </div>
       </div>
 
-      {/* Content Section */}
-      <div className="relative -mt-6 flex-1 overflow-y-auto rounded-t-[32px] bg-white p-6 shadow-sm pb-32">
-        <div className="mb-6 flex items-start justify-between gap-4 py-4">
-          <div className="text-right">
-            <h1 className="text-3xl font-semibold text-stone-800 leading-tight">
-              {plant.type}
-              {plant.type_en && <span className="block text-lg font-normal text-stone-400">{plant.type_en}</span>}
-            </h1>
-            <p className="mt-2 text-emerald-700 font-medium">{plant.sub_type} {plant.sub_type_en && `(${plant.sub_type_en})`}</p>
+      {/* גוף הדף */}
+      <div className="flex-1 bg-white rounded-t-[48px] -mt-8 relative z-10 px-8 pt-10">
+        <div className="flex justify-between items-center mb-10">
+          <div className="flex flex-col">
+            <span className="text-[10px] font-bold text-stone-400 uppercase tracking-widest mb-1">מחיר מבוקש</span>
+            <div className="text-4xl font-black text-emerald-800">₪{displayData.current_price || displayData.displayPrice}</div>
           </div>
-          <div className="text-left shrink-0">
-            <p className="text-xs text-stone-400 uppercase tracking-wider font-semibold">מחיר</p>
-            <p className="text-3xl font-semibold text-emerald-700">₪{plant.current_price}</p>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-2 gap-4 mb-6">
-          <div className="rounded-2xl border border-stone-200 bg-stone-50 p-4 text-center shadow-sm">
-            <p className="text-xs text-stone-400 mb-1">מידה</p>
-            <p className="font-semibold text-stone-800 text-lg">{plant.size}</p>
-          </div>
-          <div className="rounded-2xl border border-stone-200 bg-stone-50 p-4 text-center shadow-sm">
-            <p className="text-xs text-stone-400 mb-1">סוג עסקה</p>
-            <p className="font-semibold text-stone-800 text-lg">{listing.type === 'fixed' ? 'מכירה' : 'מכרז'}</p>
-          </div>
-        </div>
-
-        <div className="space-y-4 text-right">
-          <h2 className="text-lg font-semibold text-stone-800">פרטים נוספים</h2>
-          <p className="text-stone-600 leading-relaxed">
-            צמח מסוג {plant.type} במצב מצוין. נמכר על ידי חבר בקהילת PlantMates.
-            השווי המוערך של הצמח בשוק הוא ₪{plant.estimated_value}.
-          </p>
-        </div>
-
-        {/* Plant Care Guide */}
-        <PlantCareGuide plant={plant as any} />
-
-        {/* Sticky Action Button */}
-        <div className="sticky bottom-6 mt-auto pt-4">
-          <button 
-            className="w-full rounded-full bg-emerald-700 py-5 text-lg font-semibold text-white shadow-lg shadow-emerald-900/10 transition-transform active:scale-95 hover:bg-emerald-800"
-            onClick={() => alert('התחלת תהליך רכישה (ימומש בשלב הבא)')}
+          
+          <Link 
+            href={`/user/${displayData.ownerId}`}
+            className="flex flex-col items-end group"
           >
-            {listing.type === 'fixed' ? 'קנה עכשיו' : 'הגש הצעה למכרז'}
-          </button>
+            <span className="text-[10px] font-bold text-stone-400 uppercase tracking-widest mb-1">המוכר/ת</span>
+            <div className="flex items-center gap-2">
+                <span className="font-bold text-stone-800 group-hover:text-emerald-700 transition-colors">{displayData.sellerName || "דורון"}</span>
+                <div className="w-8 h-8 bg-stone-100 rounded-xl flex items-center justify-center text-sm font-bold text-stone-600 group-hover:bg-emerald-100 group-hover:text-emerald-700 transition-all italic">
+                    {displayData.sellerName?.[0] || "G"}
+                </div>
+            </div>
+          </Link>
         </div>
+
+        {/* רשת מידע */}
+        <div className="grid grid-cols-2 gap-4 mb-10">
+          <div className="p-6 rounded-[32px] bg-stone-50 border border-stone-100 flex flex-col gap-1">
+            <span className="text-xs font-bold text-stone-400 uppercase tracking-wider">מיקום</span>
+            <p className="font-bold text-stone-800 text-lg flex items-center gap-1.5">
+                <span className="text-base">📍</span> {displayData.location || "מרכז"}
+            </p>
+          </div>
+          <div className="p-6 rounded-[32px] bg-stone-50 border border-stone-100 flex flex-col gap-1">
+            <span className="text-xs font-bold text-stone-400 uppercase tracking-wider">גודל צמח</span>
+            <p className="font-bold text-stone-800 text-lg flex items-center gap-1.5">
+                <span className="text-base">📏</span> {displayData.size || "M"} (בינוני)
+            </p>
+          </div>
+        </div>
+
+        {/* מדריך טיפול */}
+        <div className="mb-12">
+          <h2 className="text-xl font-black text-stone-800 mb-6">איך מטפלים בי? 🌿</h2>
+          <div className="grid grid-cols-1 gap-3">
+            <div className="flex items-center gap-4 p-5 rounded-3xl bg-amber-50/50 border border-amber-100">
+              <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center text-2xl shadow-sm">
+                {getLightIcon(displayData.defaultCareGuide?.lightNeeds)}
+              </div>
+              <div>
+                <p className="text-[10px] font-bold text-amber-700 uppercase tracking-tight">דרישות תאורה</p>
+                <p className="font-bold text-stone-800">{displayData.defaultCareGuide?.lightNeeds || "אור חזק לא ישיר"}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-4 p-5 rounded-3xl bg-blue-50/50 border border-blue-100">
+              <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center text-2xl shadow-sm">💧</div>
+              <div>
+                <p className="text-[10px] font-bold text-blue-700 uppercase tracking-tight">תדירות השקיה</p>
+                <p className="font-bold text-stone-800">פעם ב-{displayData.defaultCareGuide?.wateringFrequency || 7} ימים</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* כפתור הנעה לפעולה קבוע בתחתית */}
+      <div className="fixed bottom-0 left-0 right-0 p-6 bg-white/80 backdrop-blur-xl border-t border-stone-100 z-50">
+        <button 
+          className="w-full bg-emerald-800 text-white py-5 rounded-[24px] font-black text-lg shadow-xl shadow-emerald-900/20 active:scale-[0.98] transition-all flex items-center justify-center gap-3"
+        >
+          <span>אני מעוניין/ת בצמח!</span>
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-6 h-6">
+            <path d="m9.653 16.915 1.45-5.212-4.107-2.122a.458.458 0 0 1-.027-.803l9.53-4.122a.459.458 0 0 1 .59.59l-4.122 9.53a.458.458 0 0 1-.804-.027l-2.122-4.106-5.212 1.45a.458.458 0 0 1-.57-.596l.635-2.285c.045-.16.142-.303.275-.407l1.082-.848a.458.458 0 0 1 .57.014l2.122 2.121a.458.458 0 0 1-.014.662l-.848 1.082a.458.458 0 0 1-.407.275l-2.285.635a.458.458 0 0 1-.596-.57Z" />
+          </svg>
+        </button>
       </div>
     </div>
   );

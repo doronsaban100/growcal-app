@@ -15,13 +15,14 @@ export default defineSchema({
   }).index("by_clerkId", ["clerkId"]),
 
   plants: defineTable({
-    owner_id: v.id("users"), 
+    owner_id: v.union(v.id("users"), v.string()), 
     type: v.string(),
     sub_type: v.string(),
     type_en: v.optional(v.string()), // New field for English type
     sub_type_en: v.optional(v.string()), // New field for English sub-type
-    estimated_value: v.number(),
-    current_price: v.number(),
+    estimated_value: v.optional(v.number()),
+    current_price: v.optional(v.number()),
+    imageId: v.optional(v.string()), // הוספת תמיכה בשדה היחיד הקיים בנתוני הדמה
     imageIds: v.optional(v.array(v.id("_storage"))),
     size: v.union(v.literal("S"), v.literal("M"), v.literal("L"), v.literal("XL")),
     status: v.union(
@@ -31,7 +32,6 @@ export default defineSchema({
       v.literal("collection"),
       v.literal("selling")
     ),
-    // New fields for sorting and filtering
     location: v.optional(v.string()), // חדר שינה/סלון/אמבטיה
     wateringDate: v.optional(v.number()), // Timestamp of last watering
     price: v.optional(v.number()), // Price for sorting
@@ -55,7 +55,8 @@ export default defineSchema({
       storageId: v.optional(v.id("_storage")),
       note: v.optional(v.string()),
     }))),
-  }).index("by_owner", ["owner_id"]),
+  }).index("by_owner", ["owner_id"])
+    .index("by_status", ["status"]),
 
   listings: defineTable({
     plant_id: v.id("plants"),

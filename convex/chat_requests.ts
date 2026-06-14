@@ -1,5 +1,6 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
+import { getAuthenticatedUser } from "./auth";
 
 /**
  * קונה מגיש בקשה לפתיחת צ'אט עם שאלות מובנות
@@ -11,14 +12,7 @@ export const createRequest = mutation({
     inquiryTopics: v.array(v.string()),
   },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) throw new Error("Not authenticated");
-
-    const user = await ctx.db
-      .query("users")
-      .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.subject))
-      .unique();
-    if (!user) throw new Error("User not found");
+    const user = await getAuthenticatedUser(ctx);
 
     const requestId = await ctx.db.insert("chat_requests", {
       buyer_id: user._id,
@@ -48,8 +42,11 @@ export const createRequest = mutation({
 export const proposeMeetingPoint = mutation({
   args: { requestId: v.id("chat_requests"), meetingPoint: v.string() },
   handler: async (ctx, args) => {
+    const user = await getAuthenticatedUser(ctx);
     const request = await ctx.db.get(args.requestId);
+    
     if (!request) throw new Error("Request not found");
+    if (request.seller_id !== user._id) throw new Error("Only the seller can propose a meeting point");
     
     await ctx.db.patch(args.requestId, { 
       meeting_point: args.meetingPoint,
@@ -64,18 +61,25 @@ export const proposeMeetingPoint = mutation({
 export const confirmAgreement = mutation({
   args: { requestId: v.id("chat_requests") },
   handler: async (ctx, args) => {
+    const user = await getAuthenticatedUser(ctx);
     const request = await ctx.db.get(args.requestId);
+
     if (!request || !request.meeting_point) throw new Error("Meeting point must be set");
+    if (request.buyer_id !== user._id) throw new Error("Only the buyer can confirm the agreement");
 
     const now = Date.now();
     const expiresAt = now + (72 * 60 * 60 * 1000); // 72 שעות
 
-    // חישוב סכום כולל (סימולציה לפי שווי מוערך של הצמחים)
-    let totalAmount = 0;
-    for (const pid of request.plant_ids) {
-      const p = await ctx.db.get(pid);
-      totalAmount += p?.current_price ?? 0;
-    }
+    // חישוב סכום כולל במקביל לביצועים טובים יותר
+    const plants = await Promise.all(
+      request.plant_ids.map((pid) => ctx.db.get(pid))
+    );
+    const totalAmount = plants.reduce((sum, p) => sum + (p?.current_price ?? 0), 0);
+
+    // יצירת קוד אימות מאובטח יותר (6 תווים אלפאנומריים)
+    const verificationCode = Array.from(crypto.getRandomValues(new Uint8Array(6)))
+      .map((b) => (b % 36).toString(36))
+      .join("").toUpperCase();
 
     // יצירת ההזמנה הסופית
     const orderId = await ctx.db.insert("orders", {
@@ -87,10 +91,17 @@ export const confirmAgreement = mutation({
       shipping_status: "pending",
       meeting_point: request.meeting_point,
       expires_at: expiresAt,
-      verification_code: Math.random().toString(36).substring(2, 8).toUpperCase(),
+      verification_code: verificationCode,
     });
 
     await ctx.db.patch(args.requestId, { status: "converted" });
+
+    // עדכון סטטוס הצמחים ל-'selling' (ממתינים למסירה/אימות)
+    await Promise.all(
+      request.plant_ids.map((pid) =>
+        ctx.db.patch(pid, { status: "selling" })
+      )
+    );
 
     return orderId;
   },
@@ -101,15 +112,23 @@ export const getMyRequests = query({
   handler: async (ctx) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) return [];
-    const user = await ctx.db
-      .query("users")
-      .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.subject))
-      .unique();
-    if (!user) return [];
 
-    return await ctx.db
-      .query("chat_requests")
-      .filter(q => q.or(q.eq(q.field("buyer_id"), user._id), q.eq(q.field("seller_id"), user._id)))
-      .collect();
+    // שימוש ב-getAuthenticatedUser רק אם אנחנו בטוחים שיש זהות
+    const user = await getAuthenticatedUser(ctx);
+
+    // שימוש באינדקסים לביצועים אופטימליים במקום .filter
+    const [asBuyer, asSeller] = await Promise.all([
+      ctx.db
+        .query("chat_requests")
+        .withIndex("by_buyer", (q) => q.eq("buyer_id", user._id))
+        .collect(),
+      ctx.db
+        .query("chat_requests")
+        .withIndex("by_seller", (q) => q.eq("seller_id", user._id))
+        .collect(),
+    ]);
+
+    // איחוד תוצאות ומיון לפי זמן יצירה (מהחדש לישן)
+    return [...asBuyer, ...asSeller].sort((a, b) => b._creationTime - a._creationTime);
   }
 });

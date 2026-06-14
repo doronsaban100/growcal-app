@@ -1,6 +1,7 @@
 import { mutation, query, action } from "./_generated/server";
 import { v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
+import { requireUser } from "./utils";
 
 export const generateUploadUrl = mutation(async (ctx) => {
   return await ctx.storage.generateUploadUrl();
@@ -22,15 +23,11 @@ export const insert = mutation({
   },
 
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) throw new Error("You must be signed in to add a plant.");
+    const user = await requireUser(ctx);
 
-    // שליפת המשתמש מהטבלה שלנו
-    const user = await ctx.db
-      .query("users")
-      .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.subject))
-      .unique();
-    if (!user) throw new Error("User not found in database");
+    if (!args.type.trim()) {
+      throw new Error("חובה להזין את סוג הצמח.");
+    }
 
     if (args.imageIds && args.imageIds.length > 3) {
       throw new Error("ניתן להעלות עד 3 תמונות בלבד.");
@@ -50,7 +47,6 @@ export const insert = mutation({
       status: args.status,
       location: args.location,
       price: args.price,
-      wateringDate: now,
       timeline: [
         {
           id: `creation-${now}`,
@@ -58,13 +54,12 @@ export const insert = mutation({
           timestamp: now,
           note: "הצמח נוסף לאוסף 🌱",
         },
-        ...(args.imageIds?.map(id => ({
-          id: `photo-${id}`,
-          type: "photo" as const,
-          timestamp: now,
-          storageId: id,
-        })) || [])
+        // הוספת אירוע השקיה ראשוני
+        { id: `watering-${now}`, type: "watering", timestamp: now, note: "הצמח הושקה 💧" },
+        // הוספת אירועי תמונה אם קיימים
+        ...(args.imageIds?.map(id => ({ id: `photo-${id}`, type: "photo" as const, timestamp: now, storageId: id })) || [])
       ],
+      wateringDate: now, // הגדרת תאריך השקיה ראשוני
     });
 
     // חיפוש משתמשים שמעוניינים בצמח (גם בעברית וגם באנגלית)
@@ -143,6 +138,108 @@ export const getPlantWithTimeline = query({
     ) : [];
 
     return { ...plant, timeline: timelineWithUrls };
+  },
+});
+
+/**
+ * שאילתה לשליפת פרטי מודעה/צמח מלאים עבור דף המוצר
+ */
+export const getListingDetail = query({
+  args: { id: v.string() },
+  handler: async (ctx, args) => {
+    let plant = null;
+    let listing = null;
+
+    // נרמול ה-ID עבור נתוני דמו - הסרת קידומת listing- אם קיימת כדי למנוע 404
+    const rawId = args.id.toString();
+    const mockId = rawId.includes("mock") 
+      ? (rawId.match(/mock\d+/) || [rawId])[0] 
+      : rawId;
+
+    // טיפול בנתוני דמו (Mock) עבור מצב Peek או פיתוח
+    if (mockId.startsWith("mock")) {
+      const mockData: Record<string, any> = {
+        mock1: { type: "סנסיווריה", sub_type: "קלאסית", estimated_value: 1200, current_price: 1200, location: "תל אביב", status: "personal", imageUrl: "https://images.unsplash.com/photo-1614594975525-e45190c55d0b" },
+        mock2: { type: "פילודנדרון", sub_type: "לימון", estimated_value: 450, current_price: 450, location: "חיפה", status: "for-sale", imageUrl: "https://upload.wikimedia.org/wikipedia/commons/3/31/Pink_princess_philodendron.jpg" },
+        mock3: { type: "פוטוס", sub_type: "זהב", estimated_value: 80, current_price: 80, location: "ירושלים", status: "auction", imageUrl: "https://images.unsplash.com/photo-1506543730435-e2c1d4553a84?q=80&w=800&auto=format&fit=crop" },
+        mock4: { type: "פיקוס", sub_type: "סוקולנט", estimated_value: 120, current_price: 120, location: "באר שבע", status: "personal", imageUrl: "https://images.unsplash.com/photo-1554631221-f9603e6808be" },
+      };
+
+      const mockPlant = mockData[mockId];
+      if (mockPlant) {
+        return {
+          ...mockPlant,
+          _id: mockId,
+          _creationTime: Date.now(),
+          ownerId: "mock-owner",
+          isOwner: false,
+          displayPrice: mockPlant.current_price,
+          listing: mockPlant.status !== "personal" ? { _id: `listing-${mockId}`, type: mockPlant.status === "auction" ? "auction" : "fixed" } : null,
+          sellerName: "דורון (דמו)",
+          imageUrls: [mockPlant.imageUrl],
+          imageUrl: mockPlant.imageUrl,
+          defaultCareGuide: {
+            lightNeeds: "אור חזק לא ישיר",
+            wateringFrequency: 7,
+            humidityLevel: 50,
+            soilType: "תערובת סטנדרטית",
+            careTips: ["מומלץ להשקות כשהאדמה יבשה", "לנקות אבק מהעלים"]
+          }
+        };
+      }
+    }
+
+    // 1. נסיון למצוא מודעה לפי ID
+    try {
+      listing = await ctx.db.get(args.id as Id<"listings">);
+      if (listing) {
+        plant = await ctx.db.get(listing.plant_id);
+      }
+    } catch (e) {}
+
+    // 2. אם לא נמצאה מודעה, בדוק אם ה-ID הוא של צמח (עבור נתוני דמו או קישורים ישירים)
+    if (!plant) {
+      try {
+        plant = await ctx.db.get(args.id as Id<"plants">);
+      } catch (e) {}
+    }
+
+    if (!plant) return null;
+
+    const identity = await ctx.auth.getUserIdentity();
+    let isOwner = false;
+    if (identity) {
+      const user = await ctx.db
+        .query("users")
+        .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.subject))
+        .unique();
+      isOwner = user?._id === plant.owner_id;
+    }
+
+    const imageUrls = plant.imageIds 
+      ? await Promise.all(plant.imageIds.map(id => ctx.storage.getUrl(id)))
+      : [];
+
+    const seller = (typeof plant.owner_id === "string")
+      ? null
+      : await ctx.db.get(plant.owner_id as Id<"users">);
+
+    const careGuide = await ctx.db
+      .query("careGuides")
+      .withIndex("by_plantType", (q) => q.eq("plantType", plant!.type))
+      .unique();
+
+    return {
+      ...plant,
+      ownerId: plant.owner_id,
+      isOwner, // מאפשר ל-Frontend לדעת אם להציג כפתורי ניהול או כפתורי קנייה
+      displayPrice: plant.current_price ?? plant.price ?? 0, // מחיר אחיד להצגה
+      listing,
+      sellerName: seller?.name || "מוכר GrowCal",
+      imageUrls: imageUrls.filter((url): url is string => url !== null),
+      imageUrl: imageUrls.length > 0 ? imageUrls[0] : null,
+      defaultCareGuide: careGuide ?? undefined,
+    };
   },
 });
 
@@ -234,6 +331,7 @@ export const getMyPlants = query({
           ...plant,
           imageUrl,
           listingId: listing?._id,
+          displayPrice: plant.current_price ?? plant.price ?? plant.estimated_value ?? 0,
           defaultCareGuide: careGuide ?? undefined,
         };
       })
@@ -290,10 +388,10 @@ export const getMyPlantsSorted = query({
     // Server-side sorting
     switch (args.sortBy) {
       case "price_asc":
-        plants.sort((a, b) => (a.price ?? a.estimated_value) - (b.price ?? b.estimated_value));
+        plants.sort((a, b) => (a.price ?? a.estimated_value ?? 0) - (b.price ?? b.estimated_value ?? 0));
         break;
       case "price_desc":
-        plants.sort((a, b) => (b.price ?? b.estimated_value) - (a.price ?? a.estimated_value));
+        plants.sort((a, b) => (b.price ?? b.estimated_value ?? 0) - (a.price ?? a.estimated_value ?? 0));
         break;
       case "watering_date":
         // Sort by watering date - plants that need watering soonest come first
@@ -330,7 +428,9 @@ export const getMyPlantsSorted = query({
 
         return {
           ...plant,
+          ownerId: plant.owner_id,
           imageUrl,
+          displayPrice: plant.current_price ?? plant.price ?? plant.estimated_value ?? 0,
           listingId: listing?._id,
           defaultCareGuide: careGuide ?? undefined,
         };
@@ -366,7 +466,8 @@ export const updatePlant = mutation({
       .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.subject))
       .unique();
 
-    if (!plant || !user || plant.owner_id !== user._id) {
+    if (!plant) throw new Error("Plant not found");
+    if (!user || plant.owner_id !== user._id) {
       throw new Error("Unauthorized");
     }
 
@@ -398,11 +499,32 @@ export const updateStatus = mutation({
       throw new Error("Unauthorized");
     }
 
-    // If moving to 'personal', we might want to cancel active listings in a real app logic
-    // Here we just update the SSOT status
+    // עדכון הסטטוס הראשי של הצמח
     await ctx.db.patch(args.plantId, {
       status: args.status,
     });
+
+    // לוגיקה אוטומטית לניהול מודעות בשוק (Listings)
+    const existingListing = await ctx.db
+      .query("listings")
+      .withIndex("by_plant", (q) => q.eq("plant_id", args.plantId))
+      .filter((q) => q.eq(q.field("status"), "active"))
+      .first();
+
+    if (args.status === "for-sale" && !existingListing) {
+      // אם הסטטוס הפך למכירה ואין מודעה - צור מודעה אוטומטית במחיר קבוע
+      await ctx.db.insert("listings", {
+        plant_id: args.plantId,
+        seller_id: user._id,
+        type: "fixed",
+        status: "active",
+      });
+    } else if (args.status === "personal" && existingListing) {
+      // אם הצמח הוחזר לאוסף - בטל את המודעה הפעילה בשוק
+      await ctx.db.patch(existingListing._id, {
+        status: "cancelled"
+      });
+    }
     
     return args.status;
   },
@@ -444,27 +566,30 @@ export const getForSalePlants = query({
   handler: async (ctx) => {
     const plants = await ctx.db
       .query("plants")
-      .filter((q) => q.and(
-        q.not(q.eq(q.field("type"), "אלוקסיה")),
+      .filter((q) => 
         q.or(
           q.eq(q.field("status"), "for-sale"),
-          q.eq(q.field("status"), "selling")
+          q.eq(q.field("status"), "selling"),
+          q.eq(q.field("status"), "auction")
         )
-      ))
+      )
       .collect();
 
     return await Promise.all(
       plants.map(async (plant) => {
         const imageUrl = plant.imageIds && plant.imageIds.length > 0
-          ? await ctx.storage.getUrl(plant.imageIds[0]) 
+          ? await ctx.storage.getUrl(plant.imageIds[0]!) 
           : null;
         
         const listing = await ctx.db
           .query("listings")
           .withIndex("by_plant", (q) => q.eq("plant_id", plant._id))
           .filter((q) => q.eq(q.field("status"), "active"))
-          .unique();
+          .first(); // עדיף first() כדי למנוע קריסה אם יש כפילות בטעות
           
+        // שליפת פרטי המוכר כדי להציג את השם וה-ID בפורמט שה-Frontend מצפה לו
+        const seller = await ctx.db.get(plant.owner_id as Id<"users">);
+
         // שליפת מדריך הטיפול עבור האיקונים בשוק
         const careGuide = await ctx.db
           .query("careGuides")
@@ -473,8 +598,11 @@ export const getForSalePlants = query({
 
         return { 
           ...plant, 
+          ownerId: plant.owner_id,
+          sellerName: seller?.name || "מוכר GrowCal",
           imageUrl, 
-          listingId: listing?._id,
+          displayPrice: plant.current_price ?? plant.price ?? 0, // הוספת שדה זהה ל-getMyListingPlants
+          listingId: listing?._id, 
           defaultCareGuide: careGuide ?? undefined 
         };
       })
@@ -582,13 +710,10 @@ export const getMyListingPlants = query({
       .query("plants")
       .withIndex("by_owner", (q) => q.eq("owner_id", user._id))
       .filter((q) => 
-        q.and(
-          q.not(q.eq(q.field("type"), "אלוקסיה")),
-          q.or(
-            q.eq(q.field("status"), "for-sale"),
-            q.eq(q.field("status"), "selling"),
-            q.eq(q.field("status"), "auction")
-          )
+        q.or(
+          q.eq(q.field("status"), "for-sale"),
+          q.eq(q.field("status"), "selling"),
+          q.eq(q.field("status"), "auction")
         )
       )
       .collect();
@@ -596,23 +721,32 @@ export const getMyListingPlants = query({
     return await Promise.all(
       plants.map(async (plant) => {
         const imageUrl = plant.imageIds && plant.imageIds.length > 0
-          ? await ctx.storage.getUrl(plant.imageIds[0]) 
+          ? await ctx.storage.getUrl(plant.imageIds[0]!) 
           : null;
         
-        // חיפוש מודעה פעילה עבור הקישורים בשוק
         const listing = await ctx.db
           .query("listings")
           .withIndex("by_plant", (q) => q.eq("plant_id", plant._id))
           .filter((q) => q.eq(q.field("status"), "active"))
-          .unique();
+          .first();
           
-        // שליפת מדריך הטיפול האופטימלי לפי סוג הצמח
+        const seller = await ctx.db.get(plant.owner_id as Id<"users">);
+
         const careGuide = await ctx.db
           .query("careGuides")
           .withIndex("by_plantType", (q) => q.eq("plantType", plant.type))
           .unique();
 
-        return { ...plant, imageUrl, listingId: listing?._id, defaultCareGuide: careGuide ?? undefined };
+        return { 
+          ...plant, 
+          ownerId: plant.owner_id,
+          sellerName: seller?.name || "מוכר GrowCal",
+          imageUrl, 
+          // וידוא שהמחיר בשוק תואם למחיר שהוגדר (current_price הוא ה-Source of Truth)
+          displayPrice: plant.current_price ?? plant.price ?? 0,
+          listingId: listing?._id,
+          defaultCareGuide: careGuide ?? undefined 
+        };
       })
     );
   },
@@ -639,7 +773,7 @@ export const updateWateringDate = mutation({
       .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.subject))
       .unique();
     
-    if (!plant || !user || plant.owner_id !== user._id) {
+    if (!plant || !user || (plant.owner_id as string) !== (user._id as string)) {
       throw new Error("Plant not found or unauthorized.");
     }
 
@@ -946,5 +1080,21 @@ export const updatePlantCarePreferences = mutation({
       soilType: args.careData.soilType,
       careTips: args.careData.careTips,
     });
+  },
+});
+
+/**
+ * פונקציה זמנית לניקוי צמחים ספציפיים מה-Database
+ */
+export const removePlantByType = mutation({
+  args: { type: v.string() },
+  handler: async (ctx, args) => {
+    const plants = await ctx.db
+      .query("plants")
+      .filter((q) => q.eq(q.field("type"), args.type))
+      .collect();
+    for (const plant of plants) {
+      await ctx.db.delete(plant._id);
+    }
   },
 });

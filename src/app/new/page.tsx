@@ -22,7 +22,6 @@ const ISRAEL_CITIES = [
 const statusOptions = [
   { value: "personal", label: "אוסף אישי" },
   { value: "for-sale", label: "מכירה" },
-  { value: "auction", label: "מכירה פומבית" },
 ];
 
 // הוצאת המיפוי החוצה כדי שיהיה נגיש לכל הפונקציות
@@ -265,9 +264,11 @@ export default function NewPlantPage() {
     setIsSaving(true);
 
     // הבטחת קיום ערכים עבור שדות החובה במידה ומולאה רק שפה אחת
-    const finalType = plantData.type.trim() || plantData.type_en.trim() || "";
-    const finalSubType = plantData.sub_type.trim() || plantData.sub_type_en.trim() || "";
-    const finalTypeEn = plantData.type_en.trim() || undefined;
+    const rawType = plantData.type.trim();
+    const rawTypeEn = plantData.type_en.trim();
+    const finalType = rawType || rawTypeEn || "צמח חדש";
+    const finalSubType = plantData.sub_type.trim() || plantData.sub_type_en.trim() || "כללי";
+    const finalTypeEn = rawTypeEn || undefined;
     const finalSubTypeEn = plantData.sub_type_en.trim() || undefined;
 
     try {
