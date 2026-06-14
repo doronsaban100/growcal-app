@@ -206,7 +206,7 @@ export default function AuctionsPage() {
                 <p className="font-bold text-lg text-amber-700">₪{plant.current_price ?? '---'}</p>
               </div>
               <button
-                onClick={() => handleBid((plant as any).listingId, plant.current_price)}
+                onClick={() => handleBid((plant as any).listingId, plant.current_price ?? 0)}
                 className="rounded-xl bg-amber-600 px-4 py-2 text-sm font-bold text-white transition-colors hover:bg-amber-700"
                 disabled={plant.current_price === undefined || !(plant as any).listingId}
               >
