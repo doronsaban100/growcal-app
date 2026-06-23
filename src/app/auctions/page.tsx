@@ -197,7 +197,7 @@ export default function AuctionsPage() {
                       </span>
                     )}
                   </div>
-                </div>
+                </div> 
               </div>
               
               <div className="flex justify-between items-center">
